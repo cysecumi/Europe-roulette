@@ -1,0 +1,6 @@
+{
+  "name": "Roulette Royale Premium",
+  "description": "Authentic European Roulette with realistic 2D canvas wheel physics, tactile chip betting, and session statistics.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

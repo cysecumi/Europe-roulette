@@ -1,0 +1,35 @@
+@import "tailwindcss";
+
+@layer base {
+  body {
+    font-family: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
+  }
+}
+
+.font-serif-royal {
+  font-family: 'Playfair Display', Georgia, serif;
+}
+
+/* Custom subtle casino felt texture */
+.casino-felt {
+  background-color: #0b3d27;
+  background-image: 
+    radial-gradient(ellipse at 50% 20%, rgba(20, 100, 65, 0.45) 0%, rgba(7, 35, 23, 0.95) 100%),
+    repeating-linear-gradient(45deg, rgba(255, 255, 255, 0.012) 0px, rgba(255, 255, 255, 0.012) 2px, transparent 2px, transparent 6px);
+}
+
+/* Custom scrollbar for betting table */
+.custom-scrollbar::-webkit-scrollbar {
+  height: 6px;
+}
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: rgba(0, 0, 0, 0.25);
+  border-radius: 9999px;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: rgba(226, 192, 68, 0.35);
+  border-radius: 9999px;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: rgba(226, 192, 68, 0.65);
+}
