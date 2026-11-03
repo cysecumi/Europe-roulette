@@ -14,14 +14,14 @@ import { BaccaratTable } from './components/BaccaratTable';
 import { MegaWheelTable } from './components/MegaWheelTable';
 import { SicBoTable } from './components/SicBoTable';
 import { PlinkoTable } from './components/PlinkoTable';
+import { BlockPuzzleTable } from './components/BlockPuzzleTable';
 import { ChipRack } from './components/ChipRack';
 import { ControlDock } from './components/ControlDock';
 import { HistoryTray } from './components/HistoryTray';
 import { StatsModal } from './components/StatsModal';
 import { WinModal } from './components/WinModal';
-import { TopUpModal } from './components/TopUpModal';
+import { SettingsModal } from './components/SettingsModal';
 import { HotkeysModal } from './components/HotkeysModal';
-import { BottomSettingsPanel } from './components/BottomSettingsPanel';
 import { ParticleOverlay } from './components/ParticleOverlay';
 import {
   evaluateRoundOutcome,
@@ -29,7 +29,7 @@ import {
   getColor,
   WHEEL_NUMBERS
 } from './utils/rouletteEngine';
-import { PlusCircle, Sparkles, Keyboard, Volume2, VolumeX } from 'lucide-react';
+import { Sparkles, Keyboard, Volume2, VolumeX, Settings, ChevronDown, Coins, PlusCircle } from 'lucide-react';
 import { getSoundEnabled, toggleSound } from './utils/soundEngine';
 
 const CHIP_VALUES: ChipValue[] = [5, 10, 25, 50, 100, 500];
@@ -42,6 +42,17 @@ const INITIAL_HISTORY: HistoryItem[] = [
   { number: 32, color: 'red', isEven: true, isHigh: true, timestamp: Date.now() - 200000 },
   { number: 15, color: 'black', isEven: false, isHigh: false, timestamp: Date.now() - 100000 }
 ];
+
+const GAMES = [
+  { id: 'blockPuzzle', name: 'Block Blast Puzzle', icon: '🧩', tag: 'Utama', desc: '8x8 Drag & Clear' },
+  { id: 'plinko', name: 'Plinko Arcade', icon: '🔴', tag: 'Minigame', desc: 'Fisika 2D & Multiplier' },
+  { id: 'pokerSlot', name: 'Poker Slot Machine', icon: '🃏', tag: 'Slot', desc: '5 Reels Poker Hand' },
+  { id: 'blackjack', name: 'Blackjack Royale', icon: '♠️', tag: 'Kartu', desc: 'Classic Casino 21' },
+  { id: 'roulette', name: 'Roulette Royale', icon: '🎰', tag: 'Meja', desc: 'European Single Zero' },
+  { id: 'baccarat', name: 'Baccarat Royale', icon: '🎴', tag: 'Kartu', desc: 'Player vs Banker' },
+  { id: 'megaWheel', name: 'Mega Wheel Fortune', icon: '🎡', tag: 'Roda', desc: 'Multiplier x1000' },
+  { id: 'sicBo', name: 'Sic Bo / Dice', icon: '🎲', tag: 'Dadu', desc: '3 Dadu Tradisional' }
+] as const;
 
 export default function App() {
   // Local storage persisted balance
@@ -76,7 +87,17 @@ export default function App() {
   const [targetNumber, setTargetNumber] = useState<number | null>(26);
   const [lastResult, setLastResult] = useState<SpinResult | null>(null);
   const [animationMode, setAnimationMode] = useState<'4block' | 'wheel'>('4block');
-  const [activeGame, setActiveGame] = useState<'roulette' | 'blackjack' | 'pokerSlot' | 'baccarat' | 'megaWheel' | 'sicBo' | 'plinko'>('pokerSlot');
+  const [activeGame, setActiveGame] = useState<'roulette' | 'blackjack' | 'pokerSlot' | 'baccarat' | 'megaWheel' | 'sicBo' | 'plinko' | 'blockPuzzle'>('blockPuzzle');
+
+  // UI Dialog states
+  const [isStatsOpen, setIsStatsOpen] = useState(false);
+  const [isWinModalOpen, setIsWinModalOpen] = useState(false);
+  const [isHotkeysOpen, setIsHotkeysOpen] = useState(false);
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [isMinigameDropdownOpen, setIsMinigameDropdownOpen] = useState(false);
+  const [toast, setToast] = useState<{ msg: string; icon: string } | null>(null);
+
+  const currentGame = GAMES.find(g => g.id === activeGame) || GAMES[0];
 
   const [history, setHistory] = useState<HistoryItem[]>(() => {
     const saved = localStorage.getItem('rr_history');
@@ -112,13 +133,6 @@ export default function App() {
       numberFrequencies: { 26: 1, 7: 1, 18: 1, 0: 1, 32: 1, 15: 1 }
     };
   });
-
-  // UI Dialog states
-  const [isStatsOpen, setIsStatsOpen] = useState(false);
-  const [isTopUpOpen, setIsTopUpOpen] = useState(false);
-  const [isWinModalOpen, setIsWinModalOpen] = useState(false);
-  const [isHotkeysOpen, setIsHotkeysOpen] = useState(false);
-  const [toast, setToast] = useState<{ msg: string; icon: string } | null>(null);
 
   // Sync balance to local storage
   useEffect(() => {
@@ -157,7 +171,7 @@ export default function App() {
 
       if (balance < selectedChip) {
         showToast('Saldo tidak mencukupi untuk chip ini!', '💳');
-        setIsTopUpOpen(true);
+        setIsSettingsOpen(true);
         return;
       }
 
@@ -443,10 +457,10 @@ export default function App() {
       }
 
       // If a modal is open, let modals handle their keys or close on Escape
-      if (isStatsOpen || isTopUpOpen || isWinModalOpen || isHotkeysOpen) {
+      if (isStatsOpen || isSettingsOpen || isWinModalOpen || isHotkeysOpen) {
         if (e.key === 'Escape') {
           setIsStatsOpen(false);
-          setIsTopUpOpen(false);
+          setIsSettingsOpen(false);
           setIsWinModalOpen(false);
           setIsHotkeysOpen(false);
         }
@@ -569,7 +583,7 @@ export default function App() {
     cycleChip,
     showToast,
     isStatsOpen,
-    isTopUpOpen,
+    isSettingsOpen,
     isWinModalOpen,
     isHotkeysOpen,
     activeGame
@@ -585,188 +599,183 @@ export default function App() {
         </div>
       )}
 
-      {/* ================= FIXED HEADER ================= */}
-      <header className="flex-none z-30 px-4 sm:px-8 py-3 bg-black/90 backdrop-blur-2xl border-b border-amber-500/30 shadow-[0_4px_25px_rgba(0,0,0,0.8)] flex flex-col lg:flex-row items-center justify-between gap-3">
-        {/* Zone 1: Brand & Game Switcher */}
-        <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 w-full lg:w-auto justify-between lg:justify-start">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-amber-400 via-amber-600 to-amber-900 flex items-center justify-center text-xl shadow-[0_0_15px_rgba(251,191,36,0.5)] border border-amber-300/60">
-              {activeGame === 'pokerSlot' ? '🃏' : activeGame === 'blackjack' ? '♠️' : activeGame === 'roulette' ? '🎰' : activeGame === 'baccarat' ? '🎴' : activeGame === 'megaWheel' ? '🎡' : activeGame === 'sicBo' ? '🎲' : '🔴'}
+      {/* ================= MINIMALIST LUXURY HEADER ================= */}
+      <header className="flex-none z-30 px-3 sm:px-6 py-2.5 bg-zinc-950/90 backdrop-blur-2xl border-b border-amber-500/25 shadow-[0_4px_25px_rgba(0,0,0,0.8)] flex items-center justify-between gap-3">
+        {/* Left Zone: Brand Logo & Minigame Dropdown */}
+        <div className="flex items-center gap-3">
+          {/* Brand Logo & Title */}
+          <div className="flex items-center gap-2.5">
+            <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-amber-400 via-amber-600 to-amber-900 flex items-center justify-center text-lg shadow-[0_0_15px_rgba(251,191,36,0.4)] border border-amber-300/60 shrink-0">
+              {currentGame.icon}
             </div>
-            <div>
-              <h1 className="text-lg sm:text-xl font-bold font-serif-royal text-transparent bg-clip-text bg-gradient-to-r from-amber-200 via-amber-400 to-amber-100 leading-tight">
-                {activeGame === 'pokerSlot'
-                  ? 'Poker Slot Machine'
-                  : activeGame === 'blackjack'
-                  ? 'Blackjack Royale'
-                  : activeGame === 'roulette'
-                  ? 'Roulette Royale'
-                  : activeGame === 'baccarat'
-                  ? 'Baccarat Royale'
-                  : activeGame === 'megaWheel'
-                  ? 'Mega Wheel Fortune'
-                  : activeGame === 'sicBo'
-                  ? 'Sic Bo / Dice Royale'
-                  : 'Plinko Arcade Physics'}
+            <div className="hidden xs:block">
+              <h1 className="text-base sm:text-lg font-bold font-serif-royal text-transparent bg-clip-text bg-gradient-to-r from-amber-200 via-amber-400 to-amber-100 leading-tight whitespace-nowrap">
+                Royale Arcade
               </h1>
-              <div className="flex items-center gap-2 text-[10px] text-amber-300/80 font-semibold uppercase tracking-wider">
-                <span>
-                  {activeGame === 'pokerSlot'
-                    ? '5 Reels'
-                    : activeGame === 'blackjack'
-                    ? 'Classic Blackjack'
-                    : activeGame === 'roulette'
-                    ? 'European Zero'
-                    : activeGame === 'baccarat'
-                    ? 'Player vs Banker'
-                    : activeGame === 'megaWheel'
-                    ? 'Multiplier x1000'
-                    : activeGame === 'sicBo'
-                    ? 'Dice Casino'
-                    : '2D Canvas Physics'}
-                </span>
-                <span aria-hidden="true">·</span>
-                <span className="text-fuchsia-300">Win Rate Integrated</span>
+              <div className="flex items-center gap-1.5 text-[10px] text-amber-300/80 font-semibold uppercase tracking-wider">
+                <span className="text-purple-300 font-bold">{currentGame.name}</span>
               </div>
             </div>
           </div>
 
-          {/* Game Switcher Tabs */}
-          <div className="flex items-center gap-1 p-1 bg-black/80 rounded-2xl border border-amber-500/30 shadow-inner overflow-x-auto max-w-full">
+          {/* Tombol=Minigame (Dropdown Selector) */}
+          <div className="relative">
             <button
               type="button"
-              onClick={() => setActiveGame('pokerSlot')}
-              className={`flex items-center gap-1 px-2.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap ${
-                activeGame === 'pokerSlot'
-                  ? 'bg-purple-950/80 text-amber-300 border border-amber-400/60 shadow-[0_0_10px_rgba(168,85,247,0.4)]'
-                  : 'text-slate-400 hover:text-slate-200'
+              onClick={() => setIsMinigameDropdownOpen(prev => !prev)}
+              className={`flex items-center gap-1.5 sm:gap-2 px-3 py-1.5 rounded-xl font-bold text-xs transition-all cursor-pointer border ${
+                isMinigameDropdownOpen
+                  ? 'bg-amber-500/20 text-amber-300 border-amber-400 shadow-[0_0_15px_rgba(251,191,36,0.3)]'
+                  : 'bg-zinc-900/90 hover:bg-zinc-800 text-slate-200 border-white/10 hover:border-amber-500/40 shadow-sm'
               }`}
+              title="Pilih Permainan / Minigame"
             >
-              <span>🃏</span>
-              <span className="hidden sm:inline">Poker Slot</span>
+              <span className="text-sm">{currentGame.icon}</span>
+              <span className="font-semibold text-slate-300 hidden sm:inline">Minigame:</span>
+              <span className="text-amber-300 font-bold max-w-[110px] sm:max-w-[140px] truncate">
+                {currentGame.name}
+              </span>
+              <ChevronDown
+                className={`w-3.5 h-3.5 text-amber-400 transition-transform duration-200 ${
+                  isMinigameDropdownOpen ? 'rotate-180' : ''
+                }`}
+              />
             </button>
-            <button
-              type="button"
-              onClick={() => setActiveGame('blackjack')}
-              className={`flex items-center gap-1 px-2.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap ${
-                activeGame === 'blackjack'
-                  ? 'bg-purple-950/80 text-amber-300 border border-amber-400/60 shadow-[0_0_10px_rgba(168,85,247,0.4)]'
-                  : 'text-slate-400 hover:text-slate-200'
-              }`}
-            >
-              <span>♠️</span>
-              <span className="hidden sm:inline">Blackjack</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => setActiveGame('roulette')}
-              className={`flex items-center gap-1 px-2.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap ${
-                activeGame === 'roulette'
-                  ? 'bg-purple-950/80 text-amber-300 border border-amber-400/60 shadow-[0_0_10px_rgba(168,85,247,0.4)]'
-                  : 'text-slate-400 hover:text-slate-200'
-              }`}
-            >
-              <span>🎰</span>
-              <span className="hidden sm:inline">Roulette</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => setActiveGame('baccarat')}
-              className={`flex items-center gap-1 px-2.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap ${
-                activeGame === 'baccarat'
-                  ? 'bg-purple-950/80 text-amber-300 border border-amber-400/60 shadow-[0_0_10px_rgba(168,85,247,0.4)]'
-                  : 'text-slate-400 hover:text-slate-200'
-              }`}
-            >
-              <span>🎴</span>
-              <span className="hidden sm:inline">Baccarat</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => setActiveGame('megaWheel')}
-              className={`flex items-center gap-1 px-2.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap ${
-                activeGame === 'megaWheel'
-                  ? 'bg-purple-950/80 text-amber-300 border border-amber-400/60 shadow-[0_0_10px_rgba(168,85,247,0.4)]'
-                  : 'text-slate-400 hover:text-slate-200'
-              }`}
-            >
-              <span>🎡</span>
-              <span className="hidden sm:inline">Mega Wheel</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => setActiveGame('sicBo')}
-              className={`flex items-center gap-1 px-2.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap ${
-                activeGame === 'sicBo'
-                  ? 'bg-purple-950/80 text-amber-300 border border-amber-400/60 shadow-[0_0_10px_rgba(168,85,247,0.4)]'
-                  : 'text-slate-400 hover:text-slate-200'
-              }`}
-            >
-              <span>🎲</span>
-              <span className="hidden sm:inline">Sic Bo</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => setActiveGame('plinko')}
-              className={`flex items-center gap-1 px-2.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap ${
-                activeGame === 'plinko'
-                  ? 'bg-purple-950/80 text-amber-300 border border-amber-400/60 shadow-[0_0_10px_rgba(168,85,247,0.4)]'
-                  : 'text-slate-400 hover:text-slate-200'
-              }`}
-            >
-              <span>🔴</span>
-              <span className="hidden sm:inline">Plinko</span>
-            </button>
+
+            {/* Minigame Dropdown Menu */}
+            {isMinigameDropdownOpen && (
+              <>
+                <div
+                  className="fixed inset-0 z-40"
+                  onClick={() => setIsMinigameDropdownOpen(false)}
+                />
+                <div className="absolute left-0 mt-2 w-72 sm:w-80 rounded-2xl bg-zinc-950/98 border border-amber-500/40 shadow-[0_10px_40px_rgba(0,0,0,0.95)] backdrop-blur-2xl z-50 p-2 animate-fade-in divide-y divide-white/5">
+                  <div className="px-3 py-2 flex items-center justify-between text-[11px] font-bold text-slate-400 uppercase tracking-wider">
+                    <span>Pilih Minigame</span>
+                    <span className="text-amber-400 font-mono">{GAMES.length} Permainan</span>
+                  </div>
+                  <div className="py-1 max-h-[360px] overflow-y-auto space-y-1">
+                    {GAMES.map(game => {
+                      const isSelected = activeGame === game.id;
+                      return (
+                        <button
+                          key={game.id}
+                          type="button"
+                          onClick={() => {
+                            setActiveGame(game.id as any);
+                            setIsMinigameDropdownOpen(false);
+                            showToast(`Beralih ke ${game.name}`, game.icon);
+                          }}
+                          className={`w-full flex items-center gap-3 px-3 py-2 rounded-xl text-left transition-all cursor-pointer ${
+                            isSelected
+                              ? 'bg-gradient-to-r from-amber-500/25 via-purple-500/20 to-transparent text-amber-300 border border-amber-500/50 shadow-[0_0_15px_rgba(251,191,36,0.15)] font-bold'
+                              : 'hover:bg-white/5 text-slate-300 hover:text-white border border-transparent'
+                          }`}
+                        >
+                          <div
+                            className={`w-9 h-9 rounded-xl flex items-center justify-center text-lg shrink-0 ${
+                              isSelected
+                                ? 'bg-amber-500/20 border border-amber-400/40 shadow-inner'
+                                : 'bg-black/60 border border-white/5'
+                            }`}
+                          >
+                            {game.icon}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2">
+                              <span className="text-xs sm:text-sm font-semibold truncate">
+                                {game.name}
+                              </span>
+                              <span
+                                className={`text-[9px] px-1.5 py-0.5 rounded-full font-bold uppercase ${
+                                  game.tag === 'Utama'
+                                    ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40'
+                                    : 'bg-white/5 text-slate-400 border border-white/10'
+                                }`}
+                              >
+                                {game.tag}
+                              </span>
+                            </div>
+                            <p className="text-[10px] text-slate-400 truncate">{game.desc}</p>
+                          </div>
+                          {isSelected && (
+                            <span className="text-amber-400 text-xs font-bold shrink-0">✓</span>
+                          )}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              </>
+            )}
           </div>
         </div>
 
-        {/* Zone 3: Balance & Top-Up */}
-        <div className="flex items-center gap-2.5">
-          <div className="flex flex-col items-end px-3.5 py-1 rounded-2xl bg-black/70 border border-amber-500/30 shadow-inner">
-            <span className="text-[9px] uppercase font-bold tracking-widest text-slate-400">
-              Saldo Aktif
-            </span>
-            <span className="text-lg sm:text-xl font-extrabold font-mono text-amber-400 tabular-nums">
-              {formatCurrency(balance)}
-            </span>
-          </div>
+        {/* Right Zone: Saldo, Volume, Hotkeys, Pengaturan */}
+        <div className="flex items-center gap-2 sm:gap-2.5">
+          {/* Saldo Aktif Pill (Klik untuk buka Pengaturan / Isi Saldo) */}
+          <button
+            type="button"
+            onClick={() => setIsSettingsOpen(true)}
+            className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-black/80 hover:bg-zinc-900 border border-amber-500/30 hover:border-amber-400/60 shadow-inner transition-all cursor-pointer group"
+            title="Klik untuk membuka Pengaturan & Isi Saldo"
+          >
+            <div className="w-6 h-6 rounded-lg bg-amber-500/20 border border-amber-400/40 flex items-center justify-center text-amber-300 text-xs group-hover:scale-110 transition-transform">
+              <Coins className="w-3.5 h-3.5" />
+            </div>
+            <div className="flex flex-col items-start leading-none">
+              <span className="text-[9px] uppercase font-bold tracking-widest text-slate-400 group-hover:text-amber-300 transition-colors">
+                Saldo
+              </span>
+              <span className="text-sm sm:text-base font-extrabold font-mono text-amber-400 tabular-nums">
+                {formatCurrency(balance)}
+              </span>
+            </div>
+          </button>
 
+          {/* Quick Audio Mute / Unmute */}
+          <button
+            type="button"
+            onClick={handleToggleSound}
+            className={`p-2 rounded-xl text-xs font-bold transition-all cursor-pointer shadow-md active:scale-95 border ${
+              soundOn
+                ? 'bg-amber-500/15 text-amber-300 border-amber-500/30 hover:bg-amber-500/25'
+                : 'bg-white/5 text-slate-500 border-white/10 hover:text-slate-300'
+            }`}
+            title={soundOn ? 'Suara Aktif (Klik untuk mute)' : 'Suara Mati (Klik untuk nyalakan)'}
+          >
+            {soundOn ? (
+              <Volume2 className="w-4 h-4 text-amber-400" />
+            ) : (
+              <VolumeX className="w-4 h-4 text-slate-400" />
+            )}
+          </button>
+
+          {/* Shortcut Keyboard Modal */}
           <button
             type="button"
             onClick={() => setIsHotkeysOpen(true)}
-            className="p-2 sm:px-3 sm:py-2 rounded-2xl text-xs font-bold text-slate-300 hover:text-white bg-white/5 hover:bg-white/10 border border-white/10 transition-all cursor-pointer shadow-md active:scale-95"
+            className="p-2 rounded-xl text-xs font-bold text-slate-300 hover:text-white bg-white/5 hover:bg-white/10 border border-white/10 transition-all cursor-pointer shadow-md active:scale-95 hidden xs:flex"
             title="Daftar shortcut keyboard"
           >
             <Keyboard className="w-4 h-4 text-amber-400" />
           </button>
 
+          {/* Tombol=Pengaturan -> atur tingkat kemenangan, isi saldo, volume */}
           <button
             type="button"
-            onClick={() => setIsTopUpOpen(true)}
-            className="flex items-center gap-1.5 px-3 py-2 rounded-2xl text-xs font-bold text-amber-300 hover:text-amber-100 bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/40 transition-all cursor-pointer shadow-md active:scale-95"
-            title="Isi Saldo"
+            onClick={() => setIsSettingsOpen(true)}
+            className="flex items-center gap-1.5 px-3 py-1.5 sm:py-2 rounded-xl text-xs font-bold text-amber-300 hover:text-white bg-gradient-to-r from-amber-500/20 to-purple-600/20 hover:from-amber-500/30 hover:to-purple-600/30 border border-amber-500/40 hover:border-amber-400 shadow-[0_0_15px_rgba(251,191,36,0.2)] transition-all cursor-pointer active:scale-95"
+            title="Buka Pengaturan (Tingkat Kemenangan, Isi Saldo, Volume)"
           >
-            <PlusCircle className="w-4 h-4 text-amber-400" />
-            <span className="hidden sm:inline">Isi Saldo</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={handleToggleSound}
-            className={`p-2 rounded-2xl text-xs font-bold transition-all cursor-pointer shadow-md active:scale-95 border ${
-              soundOn
-                ? 'bg-amber-500/15 text-amber-300 border-amber-500/30 hover:bg-amber-500/25'
-                : 'bg-white/5 text-slate-500 border-white/10 hover:text-slate-300'
-            }`}
-            title={soundOn ? 'Suara Aktif' : 'Suara Mati'}
-          >
-            {soundOn ? <Volume2 className="w-4 h-4 text-amber-400" /> : <VolumeX className="w-4 h-4 text-slate-400" />}
+            <Settings className="w-4 h-4 text-amber-400" />
+            <span className="hidden sm:inline font-semibold">Pengaturan</span>
           </button>
         </div>
       </header>
 
       {/* ================= MAIN SCROLLABLE ARENA ================= */}
-      <main className="flex-1 overflow-y-auto px-4 sm:px-8 py-6 max-w-[1600px] w-full mx-auto flex flex-col items-center justify-start pb-44">
+      <main className="flex-1 overflow-y-auto px-4 sm:px-8 py-5 max-w-[1600px] w-full mx-auto flex flex-col items-center justify-start pb-8">
         {activeGame === 'pokerSlot' ? (
           <div className="w-full max-w-4xl mx-auto rounded-3xl bg-zinc-950/80 border border-amber-500/30 p-5 shadow-[0_0_30px_rgba(0,0,0,0.8)] backdrop-blur-xl">
             <PokerSlotTable
@@ -814,6 +823,17 @@ export default function App() {
               onUpdateBalance={setBalance}
               showToast={showToast}
               winRate={winRate}
+              onTriggerParticles={triggerParticles}
+            />
+          </div>
+        ) : activeGame === 'blockPuzzle' ? (
+          <div className="w-full max-w-4xl mx-auto rounded-3xl bg-zinc-950/80 border border-amber-500/30 p-5 shadow-[0_0_30px_rgba(0,0,0,0.8)] backdrop-blur-xl">
+            <BlockPuzzleTable
+              balance={balance}
+              onUpdateBalance={setBalance}
+              showToast={showToast}
+              winRate={winRate}
+              onRewardCoins={(amount) => setBalance(prev => prev + amount)}
               onTriggerParticles={triggerParticles}
             />
           </div>
@@ -976,10 +996,16 @@ export default function App() {
         )}
       </main>
 
-      {/* Bottom Settings Panel (Peluang Menang / Win Rate) */}
-      <BottomSettingsPanel
+      {/* Settings Modal (Tingkat Kemenangan, Isi Saldo, Mengatur Volume) */}
+      <SettingsModal
+        isOpen={isSettingsOpen}
+        onClose={() => setIsSettingsOpen(false)}
         winRate={winRate}
         onWinRateChange={setWinRate}
+        balance={balance}
+        onAddFunds={handleAddFunds}
+        soundOn={soundOn}
+        onToggleSound={handleToggleSound}
       />
 
       {/* Modals */}
@@ -997,12 +1023,6 @@ export default function App() {
         totalWagered={stats.totalWagered}
         highestWin={stats.highestWin}
         onResetStats={handleResetStats}
-      />
-
-      <TopUpModal
-        isOpen={isTopUpOpen}
-        onClose={() => setIsTopUpOpen(false)}
-        onAddFunds={handleAddFunds}
       />
 
       <HotkeysModal

@@ -1,35 +1,36 @@
-# Implementation Plan - Plinko Minigame
+# Implementation Plan - BlockPuzzleTable Game Feel & Interaction Overhaul
 
-We will implement the iconic **Plinko** arcade casino game featuring smooth HTML5 Canvas 2D physics simulation, triangle peg arrangement, configurable rows, risk levels, and Win Rate integration.
+We will overhaul `BlockPuzzleTable.tsx` to match the exact tactile feel, responsiveness, and visual polish of authentic Block Blast games.
 
 ## Proposed Changes
 
-### 1. Plinko Component (`src/components/PlinkoTable.tsx`)
-- **Physics Engine (2D Canvas)**:
-  - Smooth 60fps canvas animation loop managing active falling balls, velocity, gravity, peg collisions, and bin landing detection.
-  - Precise peg triangle grid calculation based on row count (8 to 16 rows, default 12).
-- **Configuration Controls**:
-  - **Rows Selector**: 8, 10, 12, 14, 16 rows.
-  - **Risk Level Selector**: Low, Medium, High.
-  - **Dynamic Multipliers**: Generates multiplier slots at the bottom based on row count and risk level (smaller multipliers in center, massive multipliers up to x1000 at edges).
-  - **Bet Amount & Drop Ball**: Input bet amount, click "Drop Ball", deducts balance, launches ball from top apex.
-- **Sound & Effects Integration**:
-  - Play chip drop / peg bounce clicks (`playChipClick`) via Web Audio API.
-  - Trigger winning chimes and particle bursts (`ParticleOverlay`) when balls land in high multiplier bins.
-- **Win Rate & Balance Integration**:
-  - Dynamically updates player balance upon ball landing in multiplier bins.
-  - Respects global `winRate` setting (0% - 100%) by introducing slight intelligent trajectory bias upon peg bounces.
+### 1. Enhanced Drag UX & Y-Offset (`src/components/BlockPuzzleTable.tsx`)
+- Apply a `-60px` to `-70px` Y-offset during drag so the finger/cursor stays above the dragged block and never obscures target cells on the 8x8 grid.
+- Recalculate `hoverCell` in `handlePointerMove` using the offset pointer position so ghost shadow placement is pixel-perfect.
 
-### 2. Navigation Integration (`src/App.tsx`)
-- Add Plinko game mode to `activeGame` state and game switcher tabs in header.
+### 2. Real-Time Ghost Shadow & 3D Glossy Styling
+- Render high-fidelity translucent ghost shadows with glowing borders on target grid cells when hovering valid placements.
+- Upgrade grid and tray tiles with 3D glossy textures (rounded corners, inner bevel highlights on top-left, darker bottom-right shadows).
+
+### 3. Drop Mechanics: Snap & Elastic Bounce
+- Add custom CSS keyframe animation `snapBounce` (`scale(1.15) -> scale(0.95) -> scale(1)`) triggered on newly placed cells upon drop.
+
+### 4. Tile-Based Particle Shatter & Screen Shake
+- Remove center splash overlay.
+- Implement per-tile pop/shatter animation on cleared cells during line clears.
+- Trigger screen shake (`screenShake`) animation on the board container when clearing 2 or more lines (combo >= 2).
+
+### 5. Line-by-Line Indonesian Comments
+- Add comprehensive line-by-line Indonesian comments on all modified and new code sections.
 
 ## Verification Plan
 
 ### Automated Verification
-- Run `npm run tsc --noEmit` and `compile_applet` to ensure zero compilation errors.
+- Run `npm run tsc --noEmit` and `compile_applet` to verify zero TypeScript or build errors.
 
 ### Manual Verification
-- Switch to Plinko game mode.
-- Change row count (8 to 16) and risk levels (Low, Medium, High) and verify dynamic multiplier updates.
-- Drop ball and observe 2D physics bouncing off pegs into multiplier bins.
-- Verify balance updates, sound effects, and win/loss notifications.
+- Open Block Puzzle in the app.
+- Drag pieces from tray and verify the Y-offset lifts the piece above the cursor/finger.
+- Verify real-time ghost shadow on target grid cells.
+- Drop pieces and verify snap-bounce animation.
+- Clear lines to verify tile shatter effect and screen shake on combos.

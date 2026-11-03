@@ -1,6 +1,6 @@
 {
-  "summary": "Implementation plan for Plinko minigame with HTML5 Canvas 2D physics, configurable rows (8 to 16, default 12), risk levels (Low, Medium, High, default Low), dynamic multipliers, and Win Rate integration.",
-  "updatedAt": "2026-11-03T10:55:47.752956946Z",
+  "summary": "Implementation plan for BlockPuzzleTable game feel and interaction overhaul (Y-offset drag, real-time ghost shadow, snap bounce, tile shatter, screen shake, 3D glossy styling, line-by-line Indonesian comments).",
+  "updatedAt": "2026-11-03T17:25:41.827757868Z",
   "requestFeedback": true,
   "userFacing": true
 }
