@@ -11,6 +11,16 @@ export const HotkeysModal: React.FC<HotkeysModalProps> = ({ isOpen, onClose }) =
 
   const SHORTCUTS = [
     {
+      category: 'Poker Slot Machine (5 Reels)',
+      items: [
+        { keys: ['Space', 'Enter'], desc: 'Putar Gulungan (Spin) / Free Spin' },
+        { keys: ['A'], desc: 'Buka Menu Auto Spin / Hentikan Putaran Otomatis' },
+        { keys: ['1..6'], desc: 'Pilih chip taruhan $5 s/d $500' },
+        { keys: ['D', 'X'], desc: 'Gandakan taruhan (2x)' },
+        { keys: ['C'], desc: 'Atur taruhan ke nilai minimal ($5)' }
+      ]
+    },
+    {
       category: 'Blackjack Royale (Aksi Kartu)',
       items: [
         { keys: ['Space', 'Enter'], desc: 'Bagi Kartu (Deal) / Putaran Baru' },

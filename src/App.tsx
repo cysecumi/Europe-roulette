@@ -9,6 +9,11 @@ import { RouletteWheel } from './components/RouletteWheel';
 import { FourBlockAnimation } from './components/FourBlockAnimation';
 import { BettingTable } from './components/BettingTable';
 import { BlackjackTable } from './components/BlackjackTable';
+import { PokerSlotTable } from './components/PokerSlotTable';
+import { BaccaratTable } from './components/BaccaratTable';
+import { MegaWheelTable } from './components/MegaWheelTable';
+import { SicBoTable } from './components/SicBoTable';
+import { PlinkoTable } from './components/PlinkoTable';
 import { ChipRack } from './components/ChipRack';
 import { ControlDock } from './components/ControlDock';
 import { HistoryTray } from './components/HistoryTray';
@@ -16,13 +21,16 @@ import { StatsModal } from './components/StatsModal';
 import { WinModal } from './components/WinModal';
 import { TopUpModal } from './components/TopUpModal';
 import { HotkeysModal } from './components/HotkeysModal';
+import { BottomSettingsPanel } from './components/BottomSettingsPanel';
+import { ParticleOverlay } from './components/ParticleOverlay';
 import {
   evaluateRoundOutcome,
   formatCurrency,
   getColor,
   WHEEL_NUMBERS
 } from './utils/rouletteEngine';
-import { PlusCircle, Sparkles, VolumeX, Keyboard } from 'lucide-react';
+import { PlusCircle, Sparkles, Keyboard, Volume2, VolumeX } from 'lucide-react';
+import { getSoundEnabled, toggleSound } from './utils/soundEngine';
 
 const CHIP_VALUES: ChipValue[] = [5, 10, 25, 50, 100, 500];
 
@@ -42,16 +50,33 @@ export default function App() {
     return saved !== null ? parseInt(saved, 10) : 1000;
   });
 
+  // Real-time Win Rate (0% - 100%) applied across all games
+  const [winRate, setWinRate] = useState<number>(() => {
+    const saved = localStorage.getItem('rr_win_rate');
+    return saved !== null ? Math.max(0, Math.min(100, parseInt(saved, 10))) : 50;
+  });
+
+  const [soundOn, setSoundOn] = useState<boolean>(() => getSoundEnabled());
+  const handleToggleSound = useCallback(() => {
+    const next = toggleSound();
+    setSoundOn(next);
+  }, []);
+
   const [currentBets, setCurrentBets] = useState<Record<BetId, number>>({} as Record<BetId, number>);
   const [previousBets, setPreviousBets] = useState<Record<BetId, number>>({} as Record<BetId, number>);
   const [betHistoryLog, setBetHistoryLog] = useState<BetHistoryEntry[]>([]);
-  const [selectedChip, setSelectedChip] = useState<ChipValue>(25);
+  const [selectedChip, setSelectedChip] = useState<number>(25);
+
+  const [particleTrigger, setParticleTrigger] = useState<boolean>(false);
+  const triggerParticles = useCallback(() => {
+    setParticleTrigger(prev => !prev);
+  }, []);
 
   const [phase, setPhase] = useState<GamePhase>('IDLE');
   const [targetNumber, setTargetNumber] = useState<number | null>(26);
   const [lastResult, setLastResult] = useState<SpinResult | null>(null);
   const [animationMode, setAnimationMode] = useState<'4block' | 'wheel'>('4block');
-  const [activeGame, setActiveGame] = useState<'roulette' | 'blackjack'>('blackjack');
+  const [activeGame, setActiveGame] = useState<'roulette' | 'blackjack' | 'pokerSlot' | 'baccarat' | 'megaWheel' | 'sicBo' | 'plinko'>('pokerSlot');
 
   const [history, setHistory] = useState<HistoryItem[]>(() => {
     const saved = localStorage.getItem('rr_history');
@@ -109,6 +134,11 @@ export default function App() {
   useEffect(() => {
     localStorage.setItem('rr_stats', JSON.stringify(stats));
   }, [stats]);
+
+  // Sync winRate to local storage
+  useEffect(() => {
+    localStorage.setItem('rr_win_rate', String(winRate));
+  }, [winRate]);
 
   const showToast = useCallback((msg: string, icon = '⚠️') => {
     setToast({ msg, icon });
@@ -256,14 +286,35 @@ export default function App() {
   const handleSpin = useCallback(() => {
     if (phase === 'SPINNING' || totalBet === 0) return;
 
-    // Pick fair random European pocket
-    const winIndex = Math.floor(Math.random() * WHEEL_NUMBERS.length);
-    const winNumber = WHEEL_NUMBERS[winIndex];
+    const shouldWin = Math.random() * 100 < winRate;
+
+    // Check which pockets yield positive return for the current placed bets
+    const winningNumbers: number[] = [];
+    const losingNumbers: number[] = [];
+
+    for (const num of WHEEL_NUMBERS) {
+      const outcome = evaluateRoundOutcome(currentBets, num);
+      if (outcome.totalWon > 0) {
+        winningNumbers.push(num);
+      } else {
+        losingNumbers.push(num);
+      }
+    }
+
+    let winNumber: number;
+    if (shouldWin && winningNumbers.length > 0) {
+      winNumber = winningNumbers[Math.floor(Math.random() * winningNumbers.length)];
+    } else if (!shouldWin && losingNumbers.length > 0) {
+      winNumber = losingNumbers[Math.floor(Math.random() * losingNumbers.length)];
+    } else {
+      const winIndex = Math.floor(Math.random() * WHEEL_NUMBERS.length);
+      winNumber = WHEEL_NUMBERS[winIndex];
+    }
 
     setTargetNumber(winNumber);
     setPhase('SPINNING');
     setIsWinModalOpen(false);
-  }, [phase, totalBet]);
+  }, [currentBets, phase, totalBet, winRate]);
 
   const handleSpinComplete = useCallback(
     (winningNumber: number) => {
@@ -323,6 +374,7 @@ export default function App() {
       setCurrentBets({} as Record<BetId, number>);
       setBetHistoryLog([]);
       setPhase('RESULT');
+      triggerParticles();
 
       // Trigger celebratory modal if player won
       if (outcome.totalWon > 0) {
@@ -366,7 +418,7 @@ export default function App() {
   const cycleChip = useCallback(
     (direction: number) => {
       setSelectedChip(prev => {
-        const idx = CHIP_VALUES.indexOf(prev);
+        const idx = CHIP_VALUES.indexOf(prev as ChipValue);
         let nextIdx = idx + direction;
         if (nextIdx < 0) nextIdx = CHIP_VALUES.length - 1;
         if (nextIdx >= CHIP_VALUES.length) nextIdx = 0;
@@ -493,6 +545,14 @@ export default function App() {
         handleRebet();
         return;
       }
+      if (lower === 'a') {
+        e.preventDefault();
+        if (balance > 0 && phase !== 'SPINNING') {
+          setSelectedChip(balance);
+          showToast(`ALL IN! Chip diset ke $${balance.toLocaleString()}`, '🔥');
+        }
+        return;
+      }
     };
 
     window.addEventListener('keydown', handleKeyDown);
@@ -516,7 +576,7 @@ export default function App() {
   ]);
 
   return (
-    <div className="min-h-screen bg-radial from-slate-900 via-slate-950 to-black text-slate-100 flex flex-col items-center justify-start p-3 sm:p-6 select-none">
+    <div className="h-screen w-screen overflow-hidden flex flex-col bg-radial from-slate-950 via-zinc-950 to-black text-slate-100 select-none relative">
       {/* Toast Notification */}
       {toast && (
         <div className="fixed top-5 left-1/2 -translate-x-1/2 z-50 flex items-center gap-2.5 px-5 py-2.5 rounded-full bg-slate-900/95 border border-amber-500/50 text-slate-100 text-xs sm:text-sm font-semibold shadow-2xl backdrop-blur-md animate-fade-in">
@@ -525,142 +585,260 @@ export default function App() {
         </div>
       )}
 
-      {/* Main Container */}
-      <div className="w-full max-w-[1400px] flex flex-col gap-4 sm:gap-6">
-        {/* ================= HEADER / TOP BAR ================= */}
-        <header className="flex flex-col lg:flex-row items-center justify-between gap-4 px-5 py-4 rounded-3xl bg-slate-900/60 border border-white/10 backdrop-blur-xl shadow-2xl">
-          {/* Zone 1: Brand & Game Switcher */}
-          <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
-            <div className="flex items-center gap-3.5">
-              <div className="w-11 h-11 rounded-2xl bg-gradient-to-br from-amber-400 to-amber-700 flex items-center justify-center text-2xl shadow-lg border border-amber-300/40">
-                {activeGame === 'blackjack' ? '♠️' : '🎰'}
-              </div>
-              <div>
-                <h1 className="text-xl sm:text-2xl font-bold font-serif-royal text-transparent bg-clip-text bg-gradient-to-r from-amber-200 via-amber-400 to-amber-100 leading-tight">
-                  {activeGame === 'blackjack' ? 'Blackjack Royale' : 'Roulette Royale'}
-                </h1>
-                <div className="flex items-center gap-2 text-[11px] text-amber-300/70 font-semibold uppercase tracking-wider">
-                  <span>{activeGame === 'blackjack' ? 'Classic Casino Blackjack' : 'European Single Zero'}</span>
-                  <span aria-hidden="true">·</span>
-                  <span>{activeGame === 'blackjack' ? 'Pays 3 to 2' : '37 Pockets'}</span>
-                  <span aria-hidden="true">·</span>
-                  <span className="flex items-center gap-1 text-slate-400">
-                    <VolumeX className="w-3 h-3" /> Mode Hening
-                  </span>
-                </div>
-              </div>
-            </div>
-
-            {/* Game Switcher Tabs */}
-            <div className="flex items-center gap-1 p-1 bg-black/60 rounded-2xl border border-amber-500/25 shadow-inner">
-              <button
-                type="button"
-                onClick={() => setActiveGame('blackjack')}
-                className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
-                  activeGame === 'blackjack'
-                    ? 'bg-amber-500/25 text-amber-300 border border-amber-500/40 shadow-sm'
-                    : 'text-slate-400 hover:text-slate-200'
-                }`}
-              >
-                <span>♠️</span>
-                <span>Blackjack</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => setActiveGame('roulette')}
-                className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
-                  activeGame === 'roulette'
-                    ? 'bg-amber-500/25 text-amber-300 border border-amber-500/40 shadow-sm'
-                    : 'text-slate-400 hover:text-slate-200'
-                }`}
-              >
-                <span>🎰</span>
-                <span>Roulette</span>
-              </button>
-            </div>
-          </div>
-
-          {/* Zone 2: Informational / Status banner */}
-          {lastResult && phase === 'RESULT' && (
-            <div className="hidden lg:flex items-center gap-3 px-4 py-2 rounded-2xl bg-black/40 border border-white/5">
-              <span className="text-xs text-slate-400 font-medium">Putaran Terakhir:</span>
-              <div
-                className={`w-7 h-7 rounded-full flex items-center justify-center font-extrabold text-xs text-white shadow ${
-                  lastResult.color === 'green'
-                    ? 'bg-emerald-600'
-                    : lastResult.color === 'red'
-                    ? 'bg-red-600'
-                    : 'bg-zinc-900 border border-zinc-700'
-                }`}
-              >
-                {lastResult.winningNumber}
-              </div>
-              <span
-                className={`text-xs font-bold ${
-                  lastResult.totalWon > 0 ? 'text-amber-400' : 'text-slate-400'
-                }`}
-              >
-                {lastResult.totalWon > 0
-                  ? `Menang +${formatCurrency(lastResult.totalWon)}`
-                  : 'Tidak ada kemenangan'}
-              </span>
-            </div>
-          )}
-
-          {/* Zone 3: Balance & Top-Up */}
+      {/* ================= FIXED HEADER ================= */}
+      <header className="flex-none z-30 px-4 sm:px-8 py-3 bg-black/90 backdrop-blur-2xl border-b border-amber-500/30 shadow-[0_4px_25px_rgba(0,0,0,0.8)] flex flex-col lg:flex-row items-center justify-between gap-3">
+        {/* Zone 1: Brand & Game Switcher */}
+        <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 w-full lg:w-auto justify-between lg:justify-start">
           <div className="flex items-center gap-3">
-            <div className="flex flex-col items-end px-4 py-1.5 rounded-2xl bg-black/50 border border-amber-500/20 shadow-inner">
-              <span className="text-[10px] uppercase font-bold tracking-widest text-slate-400">
-                Total Saldo
-              </span>
-              <span className="text-xl sm:text-2xl font-extrabold font-mono text-amber-400 tabular-nums drop-shadow-sm">
-                {formatCurrency(balance)}
-              </span>
+            <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-amber-400 via-amber-600 to-amber-900 flex items-center justify-center text-xl shadow-[0_0_15px_rgba(251,191,36,0.5)] border border-amber-300/60">
+              {activeGame === 'pokerSlot' ? '🃏' : activeGame === 'blackjack' ? '♠️' : activeGame === 'roulette' ? '🎰' : activeGame === 'baccarat' ? '🎴' : activeGame === 'megaWheel' ? '🎡' : activeGame === 'sicBo' ? '🎲' : '🔴'}
             </div>
+            <div>
+              <h1 className="text-lg sm:text-xl font-bold font-serif-royal text-transparent bg-clip-text bg-gradient-to-r from-amber-200 via-amber-400 to-amber-100 leading-tight">
+                {activeGame === 'pokerSlot'
+                  ? 'Poker Slot Machine'
+                  : activeGame === 'blackjack'
+                  ? 'Blackjack Royale'
+                  : activeGame === 'roulette'
+                  ? 'Roulette Royale'
+                  : activeGame === 'baccarat'
+                  ? 'Baccarat Royale'
+                  : activeGame === 'megaWheel'
+                  ? 'Mega Wheel Fortune'
+                  : activeGame === 'sicBo'
+                  ? 'Sic Bo / Dice Royale'
+                  : 'Plinko Arcade Physics'}
+              </h1>
+              <div className="flex items-center gap-2 text-[10px] text-amber-300/80 font-semibold uppercase tracking-wider">
+                <span>
+                  {activeGame === 'pokerSlot'
+                    ? '5 Reels'
+                    : activeGame === 'blackjack'
+                    ? 'Classic Blackjack'
+                    : activeGame === 'roulette'
+                    ? 'European Zero'
+                    : activeGame === 'baccarat'
+                    ? 'Player vs Banker'
+                    : activeGame === 'megaWheel'
+                    ? 'Multiplier x1000'
+                    : activeGame === 'sicBo'
+                    ? 'Dice Casino'
+                    : '2D Canvas Physics'}
+                </span>
+                <span aria-hidden="true">·</span>
+                <span className="text-fuchsia-300">Win Rate Integrated</span>
+              </div>
+            </div>
+          </div>
 
+          {/* Game Switcher Tabs */}
+          <div className="flex items-center gap-1 p-1 bg-black/80 rounded-2xl border border-amber-500/30 shadow-inner overflow-x-auto max-w-full">
             <button
               type="button"
-              onClick={() => setIsHotkeysOpen(true)}
-              className="flex items-center gap-1.5 px-3 py-2 rounded-2xl text-xs font-bold text-slate-300 hover:text-white bg-white/5 hover:bg-white/10 border border-white/10 transition-all cursor-pointer shadow-md active:scale-95"
-              title="Lihat daftar shortcut keyboard [Tekan K atau ?]"
+              onClick={() => setActiveGame('pokerSlot')}
+              className={`flex items-center gap-1 px-2.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap ${
+                activeGame === 'pokerSlot'
+                  ? 'bg-purple-950/80 text-amber-300 border border-amber-400/60 shadow-[0_0_10px_rgba(168,85,247,0.4)]'
+                  : 'text-slate-400 hover:text-slate-200'
+              }`}
             >
-              <Keyboard className="w-4 h-4 text-amber-400" />
-              <span className="hidden sm:inline">Hotkeys</span>
+              <span>🃏</span>
+              <span className="hidden sm:inline">Poker Slot</span>
             </button>
-
             <button
               type="button"
-              onClick={() => setIsTopUpOpen(true)}
-              className="flex items-center gap-1.5 px-3 py-2 rounded-2xl text-xs font-bold text-amber-300 hover:text-amber-100 bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/30 transition-all cursor-pointer shadow-md active:scale-95"
-              title="Isi saldo kredit meja"
+              onClick={() => setActiveGame('blackjack')}
+              className={`flex items-center gap-1 px-2.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap ${
+                activeGame === 'blackjack'
+                  ? 'bg-purple-950/80 text-amber-300 border border-amber-400/60 shadow-[0_0_10px_rgba(168,85,247,0.4)]'
+                  : 'text-slate-400 hover:text-slate-200'
+              }`}
             >
-              <PlusCircle className="w-4 h-4 text-amber-400" />
-              <span>Isi Saldo</span>
+              <span>♠️</span>
+              <span className="hidden sm:inline">Blackjack</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setActiveGame('roulette')}
+              className={`flex items-center gap-1 px-2.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap ${
+                activeGame === 'roulette'
+                  ? 'bg-purple-950/80 text-amber-300 border border-amber-400/60 shadow-[0_0_10px_rgba(168,85,247,0.4)]'
+                  : 'text-slate-400 hover:text-slate-200'
+              }`}
+            >
+              <span>🎰</span>
+              <span className="hidden sm:inline">Roulette</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setActiveGame('baccarat')}
+              className={`flex items-center gap-1 px-2.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap ${
+                activeGame === 'baccarat'
+                  ? 'bg-purple-950/80 text-amber-300 border border-amber-400/60 shadow-[0_0_10px_rgba(168,85,247,0.4)]'
+                  : 'text-slate-400 hover:text-slate-200'
+              }`}
+            >
+              <span>🎴</span>
+              <span className="hidden sm:inline">Baccarat</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setActiveGame('megaWheel')}
+              className={`flex items-center gap-1 px-2.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap ${
+                activeGame === 'megaWheel'
+                  ? 'bg-purple-950/80 text-amber-300 border border-amber-400/60 shadow-[0_0_10px_rgba(168,85,247,0.4)]'
+                  : 'text-slate-400 hover:text-slate-200'
+              }`}
+            >
+              <span>🎡</span>
+              <span className="hidden sm:inline">Mega Wheel</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setActiveGame('sicBo')}
+              className={`flex items-center gap-1 px-2.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap ${
+                activeGame === 'sicBo'
+                  ? 'bg-purple-950/80 text-amber-300 border border-amber-400/60 shadow-[0_0_10px_rgba(168,85,247,0.4)]'
+                  : 'text-slate-400 hover:text-slate-200'
+              }`}
+            >
+              <span>🎲</span>
+              <span className="hidden sm:inline">Sic Bo</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setActiveGame('plinko')}
+              className={`flex items-center gap-1 px-2.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap ${
+                activeGame === 'plinko'
+                  ? 'bg-purple-950/80 text-amber-300 border border-amber-400/60 shadow-[0_0_10px_rgba(168,85,247,0.4)]'
+                  : 'text-slate-400 hover:text-slate-200'
+              }`}
+            >
+              <span>🔴</span>
+              <span className="hidden sm:inline">Plinko</span>
             </button>
           </div>
-        </header>
+        </div>
 
-        {/* ================= MAIN ARENA ================= */}
-        {activeGame === 'blackjack' ? (
-          <main className="w-full max-w-4xl mx-auto">
+        {/* Zone 3: Balance & Top-Up */}
+        <div className="flex items-center gap-2.5">
+          <div className="flex flex-col items-end px-3.5 py-1 rounded-2xl bg-black/70 border border-amber-500/30 shadow-inner">
+            <span className="text-[9px] uppercase font-bold tracking-widest text-slate-400">
+              Saldo Aktif
+            </span>
+            <span className="text-lg sm:text-xl font-extrabold font-mono text-amber-400 tabular-nums">
+              {formatCurrency(balance)}
+            </span>
+          </div>
+
+          <button
+            type="button"
+            onClick={() => setIsHotkeysOpen(true)}
+            className="p-2 sm:px-3 sm:py-2 rounded-2xl text-xs font-bold text-slate-300 hover:text-white bg-white/5 hover:bg-white/10 border border-white/10 transition-all cursor-pointer shadow-md active:scale-95"
+            title="Daftar shortcut keyboard"
+          >
+            <Keyboard className="w-4 h-4 text-amber-400" />
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setIsTopUpOpen(true)}
+            className="flex items-center gap-1.5 px-3 py-2 rounded-2xl text-xs font-bold text-amber-300 hover:text-amber-100 bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/40 transition-all cursor-pointer shadow-md active:scale-95"
+            title="Isi Saldo"
+          >
+            <PlusCircle className="w-4 h-4 text-amber-400" />
+            <span className="hidden sm:inline">Isi Saldo</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={handleToggleSound}
+            className={`p-2 rounded-2xl text-xs font-bold transition-all cursor-pointer shadow-md active:scale-95 border ${
+              soundOn
+                ? 'bg-amber-500/15 text-amber-300 border-amber-500/30 hover:bg-amber-500/25'
+                : 'bg-white/5 text-slate-500 border-white/10 hover:text-slate-300'
+            }`}
+            title={soundOn ? 'Suara Aktif' : 'Suara Mati'}
+          >
+            {soundOn ? <Volume2 className="w-4 h-4 text-amber-400" /> : <VolumeX className="w-4 h-4 text-slate-400" />}
+          </button>
+        </div>
+      </header>
+
+      {/* ================= MAIN SCROLLABLE ARENA ================= */}
+      <main className="flex-1 overflow-y-auto px-4 sm:px-8 py-6 max-w-[1600px] w-full mx-auto flex flex-col items-center justify-start pb-44">
+        {activeGame === 'pokerSlot' ? (
+          <div className="w-full max-w-4xl mx-auto rounded-3xl bg-zinc-950/80 border border-amber-500/30 p-5 shadow-[0_0_30px_rgba(0,0,0,0.8)] backdrop-blur-xl">
+            <PokerSlotTable
+              balance={balance}
+              onUpdateBalance={setBalance}
+              showToast={showToast}
+              winRate={winRate}
+              onTriggerParticles={triggerParticles}
+            />
+          </div>
+        ) : activeGame === 'blackjack' ? (
+          <div className="w-full max-w-4xl mx-auto rounded-3xl bg-zinc-950/80 border border-amber-500/30 p-5 shadow-[0_0_30px_rgba(0,0,0,0.8)] backdrop-blur-xl">
             <BlackjackTable
               balance={balance}
               onUpdateBalance={setBalance}
               showToast={showToast}
+              winRate={winRate}
+              onTriggerParticles={triggerParticles}
             />
-          </main>
+          </div>
+        ) : activeGame === 'baccarat' ? (
+          <div className="w-full max-w-4xl mx-auto rounded-3xl bg-zinc-950/80 border border-amber-500/30 p-5 shadow-[0_0_30px_rgba(0,0,0,0.8)] backdrop-blur-xl">
+            <BaccaratTable
+              balance={balance}
+              onUpdateBalance={setBalance}
+              showToast={showToast}
+              winRate={winRate}
+              onTriggerParticles={triggerParticles}
+            />
+          </div>
+        ) : activeGame === 'megaWheel' ? (
+          <div className="w-full max-w-4xl mx-auto rounded-3xl bg-zinc-950/80 border border-amber-500/30 p-5 shadow-[0_0_30px_rgba(0,0,0,0.8)] backdrop-blur-xl">
+            <MegaWheelTable
+              balance={balance}
+              onUpdateBalance={setBalance}
+              showToast={showToast}
+              winRate={winRate}
+              onTriggerParticles={triggerParticles}
+            />
+          </div>
+        ) : activeGame === 'sicBo' ? (
+          <div className="w-full max-w-4xl mx-auto rounded-3xl bg-zinc-950/80 border border-amber-500/30 p-5 shadow-[0_0_30px_rgba(0,0,0,0.8)] backdrop-blur-xl">
+            <SicBoTable
+              balance={balance}
+              onUpdateBalance={setBalance}
+              showToast={showToast}
+              winRate={winRate}
+              onTriggerParticles={triggerParticles}
+            />
+          </div>
+        ) : activeGame === 'plinko' ? (
+          <div className="w-full max-w-5xl mx-auto rounded-3xl bg-zinc-950/80 border border-amber-500/30 p-5 shadow-[0_0_30px_rgba(0,0,0,0.8)] backdrop-blur-xl">
+            <PlinkoTable
+              balance={balance}
+              onUpdateBalance={setBalance}
+              showToast={showToast}
+              winRate={winRate}
+              onTriggerParticles={triggerParticles}
+            />
+          </div>
         ) : (
-          <main className="grid grid-cols-1 lg:grid-cols-[440px_1fr] gap-6 items-start">
+          <div className="grid grid-cols-1 lg:grid-cols-[420px_1fr] gap-6 items-start w-full max-w-7xl mx-auto">
             {/* LEFT: Roulette Studio / 4-Block Display */}
-            <section className="flex flex-col items-center gap-3.5 p-5 rounded-3xl bg-slate-900/60 border border-white/10 backdrop-blur-xl shadow-2xl relative overflow-hidden">
+            <section className="flex flex-col items-center gap-3.5 p-5 rounded-3xl bg-zinc-950/80 border border-amber-500/30 backdrop-blur-xl shadow-[0_0_30px_rgba(0,0,0,0.8)] relative overflow-hidden">
               {/* Animation Mode Switcher */}
-              <div className="flex items-center gap-1 p-1 bg-black/40 rounded-xl border border-white/5 w-full">
+              <div className="flex items-center gap-1 p-1 bg-black/60 rounded-xl border border-white/10 w-full">
                 <button
                   type="button"
                   onClick={() => setAnimationMode('4block')}
                   className={`flex-1 py-1.5 px-3 rounded-lg text-xs font-bold transition-all cursor-pointer ${
                     animationMode === '4block'
-                      ? 'bg-amber-500/25 text-amber-300 border border-amber-500/40 shadow-sm'
+                      ? 'bg-purple-950/80 text-amber-300 border border-amber-400/60 shadow-[0_0_10px_rgba(168,85,247,0.4)]'
                       : 'text-slate-400 hover:text-slate-200'
                   }`}
                 >
@@ -671,7 +849,7 @@ export default function App() {
                   onClick={() => setAnimationMode('wheel')}
                   className={`flex-1 py-1.5 px-3 rounded-lg text-xs font-bold transition-all cursor-pointer ${
                     animationMode === 'wheel'
-                      ? 'bg-amber-500/25 text-amber-300 border border-amber-500/40 shadow-sm'
+                      ? 'bg-purple-950/80 text-amber-300 border border-amber-400/60 shadow-[0_0_10px_rgba(168,85,247,0.4)]'
                       : 'text-slate-400 hover:text-slate-200'
                   }`}
                 >
@@ -679,8 +857,8 @@ export default function App() {
                 </button>
               </div>
 
-              {/* Visual Centerpiece (4-Block Kombinasi or Classic Canvas Wheel) */}
-              <div className="w-full flex items-center justify-center py-1 min-h-[420px]">
+              {/* Visual Centerpiece */}
+              <div className="w-full flex items-center justify-center py-1 min-h-[400px]">
                 {animationMode === '4block' ? (
                   <FourBlockAnimation
                     phase={phase}
@@ -702,7 +880,7 @@ export default function App() {
               </div>
 
               {/* Spin Status Message */}
-              <div className="w-full text-center py-2 px-4 rounded-xl bg-black/40 border border-white/5 min-h-[44px] flex items-center justify-center">
+              <div className="w-full text-center py-2 px-4 rounded-xl bg-black/60 border border-amber-500/20 min-h-[44px] flex items-center justify-center">
                 {phase === 'SPINNING' ? (
                   <div className="flex items-center gap-2 text-xs font-bold text-amber-400 uppercase tracking-widest animate-pulse">
                     <Sparkles className="w-3.5 h-3.5 text-amber-400 animate-spin" />
@@ -735,49 +913,74 @@ export default function App() {
                   </div>
                 ) : (
                   <span className="text-xs text-slate-400 font-medium">
-                    Pilih chip di bawah dan letakkan taruhan Anda pada meja
+                    Pilih chip dan letakkan taruhan pada meja
                   </span>
                 )}
               </div>
             </section>
 
-            {/* RIGHT: Casino Table & Control Center */}
-            <section className="flex flex-col gap-4">
-              {/* European Table Felt */}
-              <BettingTable
-                bets={currentBets}
-                onPlaceBet={handlePlaceBet}
-                onRemoveBet={handleRemoveBet}
-                disabled={phase === 'SPINNING'}
-                winningNumber={phase === 'RESULT' && lastResult ? lastResult.winningNumber : null}
-                winningBetIds={phase === 'RESULT' && lastResult ? lastResult.winningBetIds : []}
-              />
+            {/* RIGHT: Casino Table & Control Center with Side-Mounted Vertical Chip Selector on Desktop/Tablet */}
+            <div className="flex flex-col lg:flex-row gap-4 items-start w-full">
+              <section className="flex flex-col gap-4 flex-1 w-full">
+                {/* European Table Felt */}
+                <BettingTable
+                  bets={currentBets}
+                  onPlaceBet={handlePlaceBet}
+                  onRemoveBet={handleRemoveBet}
+                  disabled={phase === 'SPINNING'}
+                  winningNumber={phase === 'RESULT' && lastResult ? lastResult.winningNumber : null}
+                  winningBetIds={phase === 'RESULT' && lastResult ? lastResult.winningBetIds : []}
+                />
 
-              {/* Chip Selection Rack */}
-              <ChipRack
-                selectedChip={selectedChip}
-                onSelectChip={setSelectedChip}
-                disabled={phase === 'SPINNING'}
-              />
+                {/* Horizontal Chip Selection Rack (for mobile) */}
+                <div className="block lg:hidden w-full">
+                  <ChipRack
+                    selectedChip={selectedChip}
+                    onSelectChip={setSelectedChip}
+                    balance={balance}
+                    showToast={showToast}
+                    disabled={phase === 'SPINNING'}
+                    orientation="horizontal"
+                  />
+                </div>
 
-              {/* Control Dock (Undo, Clear, Double, Rebet, SPIN) */}
-              <ControlDock
-                totalBet={totalBet}
-                canUndo={betHistoryLog.length > 0}
-                canClear={totalBet > 0}
-                canDouble={totalBet > 0 && balance >= totalBet}
-                canRebet={Object.keys(previousBets).length > 0}
-                isSpinning={phase === 'SPINNING'}
-                onUndo={handleUndo}
-                onClear={handleClear}
-                onDouble={handleDouble}
-                onRebet={handleRebet}
-                onSpin={handleSpin}
-              />
-            </section>
-          </main>
+                {/* Control Dock */}
+                <ControlDock
+                  totalBet={totalBet}
+                  canUndo={betHistoryLog.length > 0}
+                  canClear={totalBet > 0}
+                  canDouble={totalBet > 0 && balance >= totalBet}
+                  canRebet={Object.keys(previousBets).length > 0}
+                  isSpinning={phase === 'SPINNING'}
+                  onUndo={handleUndo}
+                  onClear={handleClear}
+                  onDouble={handleDouble}
+                  onRebet={handleRebet}
+                  onSpin={handleSpin}
+                />
+              </section>
+
+              {/* Side-Mounted Vertical Chip Selector on Desktop/Tablet */}
+              <div className="hidden lg:block sticky top-6">
+                <ChipRack
+                  selectedChip={selectedChip}
+                  onSelectChip={setSelectedChip}
+                  balance={balance}
+                  showToast={showToast}
+                  disabled={phase === 'SPINNING'}
+                  orientation="vertical"
+                />
+              </div>
+            </div>
+          </div>
         )}
-      </div>
+      </main>
+
+      {/* Bottom Settings Panel (Peluang Menang / Win Rate) */}
+      <BottomSettingsPanel
+        winRate={winRate}
+        onWinRateChange={setWinRate}
+      />
 
       {/* Modals */}
       <WinModal
@@ -806,6 +1009,8 @@ export default function App() {
         isOpen={isHotkeysOpen}
         onClose={() => setIsHotkeysOpen(false)}
       />
+
+      <ParticleOverlay trigger={particleTrigger} />
     </div>
   );
 }

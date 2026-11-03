@@ -1,6 +1,7 @@
 import React from 'react';
 import { BetId } from '../types/roulette';
 import { formatChipBadge, getColor, isRed } from '../utils/rouletteEngine';
+import { playChipClick } from '../utils/soundEngine';
 
 interface BettingTableProps {
   bets: Record<BetId, number>;
@@ -78,6 +79,7 @@ export const BettingTable: React.FC<BettingTableProps> = ({
 
   const handleCellClick = (id: BetId) => {
     if (disabled) return;
+    playChipClick();
     onPlaceBet(id);
   };
 

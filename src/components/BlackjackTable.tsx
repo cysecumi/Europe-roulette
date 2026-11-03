@@ -15,16 +15,20 @@ interface BlackjackTableProps {
   balance: number;
   onUpdateBalance: (newBalance: number) => void;
   showToast: (msg: string, icon?: string) => void;
+  winRate?: number;
+  onTriggerParticles?: () => void;
 }
 
 export const BlackjackTable: React.FC<BlackjackTableProps> = ({
   balance,
   onUpdateBalance,
-  showToast
+  showToast,
+  winRate = 50,
+  onTriggerParticles
 }) => {
   const [deck, setDeck] = useState<Card[]>(() => createDeck(6));
   const [phase, setPhase] = useState<BlackjackPhase>('BETTING');
-  const [selectedChip, setSelectedChip] = useState<ChipValue>(25);
+  const [selectedChip, setSelectedChip] = useState<number>(25);
   const [betAmount, setBetAmount] = useState<number>(50);
   const [previousBet, setPreviousBet] = useState<number>(50);
 
@@ -62,6 +66,9 @@ export const BlackjackTable: React.FC<BlackjackTableProps> = ({
     deckRef.current = deck;
   }, [deck]);
 
+  const winRateRef = useRef(winRate);
+  winRateRef.current = winRate;
+
   // Helper to draw a card from deck
   const drawCard = useCallback((isFaceUp = true): Card => {
     let currentDeck = deckRef.current;
@@ -74,6 +81,22 @@ export const BlackjackTable: React.FC<BlackjackTableProps> = ({
     setDeck(deckRef.current);
     return card;
   }, [showToast]);
+
+  // Helper to draw matching card for win-rate guidance
+  const drawMatchingCard = useCallback((predicate: (c: Card) => boolean, isFaceUp = true): Card => {
+    let currentDeck = deckRef.current;
+    if (currentDeck.length < 15) {
+      currentDeck = createDeck(6);
+    }
+    const matchIdx = currentDeck.findIndex(predicate);
+    if (matchIdx !== -1) {
+      const card = { ...currentDeck[matchIdx], isFaceUp };
+      deckRef.current = [...currentDeck.slice(0, matchIdx), ...currentDeck.slice(matchIdx + 1)];
+      setDeck(deckRef.current);
+      return card;
+    }
+    return drawCard(isFaceUp);
+  }, [drawCard]);
 
   // ================= BETTING ACTIONS =================
   const handleAddBet = useCallback(
@@ -131,11 +154,33 @@ export const BlackjackTable: React.FC<BlackjackTableProps> = ({
     setPhase('DEALING');
     setRoundResult(null);
 
-    // Initial 4 cards deal: Player, Dealer (Face Up), Player, Dealer (Face Down / Hole)
-    const pCard1 = drawCard(true);
-    const dCard1 = drawCard(true);
-    const pCard2 = drawCard(true);
-    const dCard2 = drawCard(false); // Hole card
+    // Initial 4 cards deal biased by real-time win rate
+    const shouldWin = Math.random() * 100 < winRateRef.current;
+    let pCard1: Card;
+    let dCard1: Card;
+    let pCard2: Card;
+    let dCard2: Card;
+
+    if (shouldWin) {
+      // Player favored: High chance of 20 or Blackjack (Ace + 10, or 10 + 10)
+      const roll = Math.random();
+      if (roll < 0.45) {
+        pCard1 = drawMatchingCard(c => c.rank === 'A', true);
+        pCard2 = drawMatchingCard(c => ['10', 'J', 'Q', 'K'].includes(c.rank), true);
+      } else {
+        pCard1 = drawMatchingCard(c => ['10', 'J', 'Q', 'K'].includes(c.rank), true);
+        pCard2 = drawMatchingCard(c => ['9', '10', 'J', 'Q', 'K'].includes(c.rank), true);
+      }
+      // Dealer gets vulnerable card up (e.g. 5 or 6)
+      dCard1 = drawMatchingCard(c => ['4', '5', '6', '7'].includes(c.rank), true);
+      dCard2 = drawMatchingCard(c => ['7', '8', '9', '10'].includes(c.rank), false);
+    } else {
+      // House favored: Dealer gets strong hand, player gets difficult hand
+      dCard1 = drawMatchingCard(c => ['10', 'J', 'Q', 'K', 'A'].includes(c.rank), true);
+      dCard2 = drawMatchingCard(c => ['9', '10', 'J', 'Q', 'K'].includes(c.rank), false);
+      pCard1 = drawMatchingCard(c => ['9', '10'].includes(c.rank), true);
+      pCard2 = drawMatchingCard(c => ['5', '6'].includes(c.rank), true);
+    }
 
     const pCards = [pCard1, pCard2];
     const dCards = [dCard1, dCard2];
@@ -241,6 +286,7 @@ export const BlackjackTable: React.FC<BlackjackTableProps> = ({
             setRoundResult(outcome);
             if (outcome.payout > 0) {
               onUpdateBalance(balance + outcome.payout);
+              onTriggerParticles?.();
             }
             setPhase('ROUND_OVER');
           }, 600);
@@ -620,7 +666,7 @@ export const BlackjackTable: React.FC<BlackjackTableProps> = ({
             <button
               type="button"
               disabled={phase !== 'BETTING'}
-              onClick={() => handleAddBet(selectedChip)}
+              onClick={() => handleAddBet(selectedChip as ChipValue)}
               className={`relative w-20 h-20 sm:w-24 sm:h-24 rounded-full border-2 border-dashed flex flex-col items-center justify-center transition-all cursor-pointer disabled:cursor-default ${
                 phase === 'BETTING'
                   ? 'border-amber-400/80 bg-black/40 hover:bg-black/60 shadow-[0_0_20px_rgba(234,179,8,0.2)]'
@@ -653,6 +699,8 @@ export const BlackjackTable: React.FC<BlackjackTableProps> = ({
           <ChipRack
             selectedChip={selectedChip}
             onSelectChip={setSelectedChip}
+            balance={balance}
+            showToast={showToast}
           />
         )}
 
